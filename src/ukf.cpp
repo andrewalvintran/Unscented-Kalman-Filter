@@ -47,9 +47,6 @@ UKF::UKF() {
   std_radrd_ = 0.3;
   //DO NOT MODIFY measurement noise values above these are provided by the sensor manufacturer.
 
-  // measurement dimension for r, phi, and r_dot
-  n_z_ = 3;
-  
   n_x_ = 5;
   n_aug_ = 7;
   lambda_ = 3 - n_aug_;
@@ -139,6 +136,24 @@ void UKF::Prediction(double delta_t) {
     Xsig_pred_(2, i) = v + delta_t_sq * nu_a;
     Xsig_pred_(3, i) = yaw + yaw_dot*delta_t_sq + 0.5*(delta_t_sq * delta_t_sq) * nu_yawdd;
     Xsig_pred_(4, i) = yaw_dot + delta_t_sq*nu_yawdd;
+  }
+
+  // predict state mean
+  x_.fill(0.0);
+  for (int i = 0; i < 2*n_aug_ + 1; i++) {
+    x_ += weights_(i) * Xsig_pred_.col(i);
+  }
+
+  // predict state covariance matrix
+  P_.fill(0.0);
+  for (int i = 0; i < 2*n_aug_ + 1; i++) {
+    VectorXd x_diff = Xsig_pred_.col(i) - x_;
+
+    //angle normalization
+    while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
+    while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
+
+    P_ += weights_(i) * x_diff * x_diff.transpose();
   }
 }
 

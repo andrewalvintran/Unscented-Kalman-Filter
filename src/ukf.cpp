@@ -25,10 +25,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 6;
+  std_a_ = 3;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 1.0;
+  std_yawdd_ = 0.5;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
@@ -47,6 +47,7 @@ UKF::UKF() {
   std_radrd_ = 0.3;
   //DO NOT MODIFY measurement noise values above these are provided by the sensor manufacturer.
 
+  n_z_ = 3;
   n_x_ = 5;
   n_aug_ = 7;
   lambda_ = 3 - n_aug_;
@@ -218,4 +219,75 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   You'll also need to calculate the radar NIS.
   */
+
+  //create matrix for sigma points in measurement space
+  MatrixXd Zsig = MatrixXd(n_z_, 2*n_aug_ + 1);
+
+  //mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z_);
+  
+  //measurement covariance matrix S
+  MatrixXd S = MatrixXd(n_z_, n_z_);
+
+  for (int i = 0; i < n_aug_*2 + 1; i++) {
+      double p_x = Xsig_pred_(0, i);
+      double p_y = Xsig_pred_(1, i);
+      double v = Xsig_pred_(2, i);
+      double yaw = Xsig_pred_(3, i);
+      
+      double v1 = p_x*cos(yaw)*v;
+      double v2 = p_y*sin(yaw)*v;
+      
+      Zsig(0, i) = sqrt(p_x*p_x + p_y*p_y);
+      Zsig(1, i) = atan2(p_y, p_x);
+      Zsig(2, i) = (v1 + v2) / sqrt(p_x*p_x + p_y*p_y);
+  }
+
+  z_pred.fill(0.0);
+  for (int i = 0; i < 2*n_aug_ + 1; i++) {
+    z_pred += weights_(i) * Zsig.col(i);
+  }
+
+  S.fill(0.0);
+  for (int i = 0; i < 2*n_aug_ + 1; i++) {
+    VectorXd z_diff = Zsig.col(i) - z_pred;
+
+    while(z_diff(1) < -M_PI) z_diff(1) += 2.0*M_PI;
+    while(z_diff(1) > M_PI) z_diff(1) -= 2.0*M_PI;
+
+    S = S + weights_(i) * z_diff * z_diff.transpose();
+  }
+
+  MatrixXd R = MatrixXd(n_z_, n_z_);
+  R << std_radr_*std_radr_, 0.0, 0,
+        0, std_radphi_ * std_radphi_, 0,
+        0, 0, std_radrd_*std_radrd_;
+        
+  S += R;
+
+  MatrixXd Tc = MatrixXd(n_x_, n_z_);
+  Tc.fill(0.0);
+
+//calculate cross correlation matrix
+  for (int i = 0; i < 2*n_aug_ + 1; i++) {
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+      while(z_diff(1) < -M_PI) z_diff(1) += 2.0*M_PI;
+      while(z_diff(1) > M_PI) z_diff(1) -= 2.0*M_PI;
+
+      VectorXd x_diff = Xsig_pred_.col(i) - x_;
+      Tc += weights_(i) * x_diff * z_diff.transpose();
+  }
+
+  //calculate Kalman gain K;
+  MatrixXd K = Tc * S.inverse();
+  VectorXd z = VectorXd(n_z_);
+  z << meas_package.raw_measurements_(0), 
+       meas_package.raw_measurements_(1),
+       meas_package.raw_measurements_(2);
+  VectorXd z_diff = z - z_pred;
+  while(z_diff(1) < -M_PI) z_diff(1) += 2.0*M_PI;
+  while(z_diff(1) > M_PI) z_diff(1) -= 2.0*M_PI;
+  //update state mean and covariance matrix
+  x_ += K * z_diff;
+  P_ -= K*S*K.transpose();
 }

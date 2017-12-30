@@ -58,6 +58,8 @@ UKF::UKF() {
         0, 0, 1, 0, 0,
         0, 0, 0, 1, 0,
         0, 0, 0, 0, 1;
+
+  is_initialized_ = false;
 }
 
 UKF::~UKF() {}

@@ -143,8 +143,6 @@ void UKF::Prediction(double delta_t) {
     Xsig_aug.col(i+1+n_aug_) = x_aug - sqrt(n_aug_ + lambda_)*L.col(i);
   }
 
-  double delta_t_sq = delta_t * delta_t;
-
   // predict sigma points
   for (int i = 0; i < n_aug_*2 + 1; i++) {
     double p_x = Xsig_aug(0, i);
@@ -158,18 +156,19 @@ void UKF::Prediction(double delta_t) {
     double px_p, py_p;
     
     if (fabs(yaw_dot) <= 0.001) {
-        px_p = p_x + v * delta_t_sq * cos(yaw);
-        py_p = p_y + v * delta_t_sq * sin(yaw);
+        px_p = p_x + v * delta_t * cos(yaw);
+        py_p = p_y + v * delta_t * sin(yaw);
     } else {
-        px_p = p_x + v/yaw_dot * (sin(yaw + yaw_dot*delta_t_sq) - sin(yaw));
-        py_p = p_y + v/yaw_dot * (-cos(yaw + yaw_dot*delta_t_sq) + cos(yaw));
+        px_p = p_x + v/yaw_dot * (sin(yaw + yaw_dot*delta_t) - sin(yaw));
+        py_p = p_y + v/yaw_dot * (-cos(yaw + yaw_dot*delta_t) + cos(yaw));
     }
-    
+
+    const double delta_t_sq = delta_t * delta_t;
     Xsig_pred_(0, i) = px_p + 0.5*(delta_t_sq)*cos(yaw)*nu_a;
     Xsig_pred_(1, i) = py_p + 0.5*(delta_t_sq)*sin(yaw)*nu_a;
-    Xsig_pred_(2, i) = v + delta_t_sq * nu_a;
-    Xsig_pred_(3, i) = yaw + yaw_dot*delta_t_sq + 0.5*(delta_t_sq * delta_t_sq) * nu_yawdd;
-    Xsig_pred_(4, i) = yaw_dot + delta_t_sq*nu_yawdd;
+    Xsig_pred_(2, i) = v + delta_t * nu_a;
+    Xsig_pred_(3, i) = yaw + yaw_dot*delta_t + 0.5*(delta_t_sq) * nu_yawdd;
+    Xsig_pred_(4, i) = yaw_dot + delta_t*nu_yawdd;
   }
 
   // predict state mean

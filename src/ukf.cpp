@@ -68,12 +68,45 @@ UKF::~UKF() {}
  * either radar or laser.
  */
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
-  /**
-  TODO:
+  if (!is_initialized_) {
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      x_ << meas_package.raw_measurements_(0),
+            meas_package.raw_measurements_(1),
+            0.0, 0.0, 0.0;
+    } else if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      double rho = meas_package.raw_measurements_(0);
+      double phi = meas_package.raw_measurements_(1);
+      double rho_dot = meas_package.raw_measurements_(2);
 
-  Complete this function! Make sure you switch between lidar and radar
-  measurements.
-  */
+      double p_x = rho * cos(phi);
+      double p_y = rho * sin(phi);
+
+      double v_x = rho_dot * cos(phi);
+      double v_y = rho_dot * sin(phi);
+      double v = sqrt(v_x*v_x + v_y*v_y); 
+      x_ << p_x, p_y, v, 0.0, 0.0;
+    }
+
+    //set weights
+    weights_(0) = lambda_ / (lambda_ + n_aug_);
+    for (int i = 1; i < 2*n_aug_ + 1; i++) {
+        weights_(i) = 0.5 / (lambda_ + n_aug_);
+    }
+
+    is_initialized_ = true;
+    time_us_ = meas_package.timestamp_;
+  } else {
+    const double NUM_SEC_IN_MICRO = 1000000.0;
+    double delta_t = (meas_package.timestamp_ - time_us_) / NUM_SEC_IN_MICRO;
+    time_us_ = meas_package.timestamp_;
+    Prediction(delta_t);
+
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      UpdateLidar(meas_package);
+    } else if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
+      UpdateRadar(meas_package);
+    }
+  }
 }
 
 /**
